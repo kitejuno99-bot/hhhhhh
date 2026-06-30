@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>좌표 추리! 세계 지리 탐험대</title>
+    <style>
+        :root { 
+            --p1: #ff7675; --p2: #74b9ff; --p3: #fdcb6e; --p4: #55efc4;
+            --sky: #a2d2ff; --deep-blue: #0984e3;
+        }
+        
+        body { 
+            font-family: 'Malgun Gothic', sans-serif; 
+            background: var(--sky) url('https://www.transparenttextures.com/patterns/clouds.png');
+            background-image: linear-gradient(rgba(162, 210, 255, 0.4), rgba(162, 210, 255, 0.4)), url('https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FbcM9nO%2FbtrY7vQ6v5x%2FUKC9X3lKkKK9ySkhkXv6kK%2Fimg.png');
+            background-size: cover; background-position: center; background-attachment: fixed;
+            display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 5px; color: #2d3436; overflow: hidden; height: 100vh; 
+        }
+
+        #round-tracker { 
+            background: white; color: var(--deep-blue); padding: 10px 60px; 
+            border-radius: 0 0 40px 40px; font-weight: 900; font-size: 24px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 10; border: 4px solid #74b9ff; border-top: none;
+        }
+
+        #scoreboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 95%; max-width: 750px; margin: 10px 0; }
+        .score-box { 
+            padding: 10px; border-radius: 25px; background: rgba(255,255,255,0.9); 
+            text-align: center; border: 4px solid transparent; font-size: 15px; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .score-box.active { background: white; border-color: #fdcb6e; transform: translateY(-8px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+        .score-box b { font-size: 22px; }
+
+        #board { 
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); 
+            gap: 8px; width: 94vw; max-width: 620px; height: 94vw; max-height: 620px; 
+            background: rgba(255,255,255,0.3); padding: 15px; border-radius: 40px; position: relative;
+            border: 8px solid white; backdrop-filter: blur(5px);
+        }
+
+        .tile { 
+            background: rgba(255, 255, 255, 0.95); border-radius: 18px; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; font-size: 12px; text-align: center; 
+            color: #2d3436; position: relative; border-bottom: 5px solid #dfe6e9; font-weight: 900;
+        }
+        .tile.selectable { cursor: pointer; border: 5px solid #fdcb6e !important; animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% {transform: scale(1);} 50% {transform: scale(1.05);} }
+
+        .tile.special { background: #ffeaa7 !important; color: #d35400; }
+        .tile.chance { background: #fab1a0 !important; }
+        .tile-icon { font-size: 28px; margin-bottom: 2px; }
+        .tile-point { position: absolute; bottom: 3px; right: 8px; font-size: 10px; color: #ff7675; }
+
+        #ui-center { grid-row: 2 / 8; grid-column: 2 / 8; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        .scene { width: 80px; height: 80px; perspective: 400px; margin-bottom: 20px; }
+        .dice { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 1s; }
+        .dice-face { position: absolute; width: 80px; height: 80px; background: white; border: 4px solid #74b9ff; line-height: 80px; font-size: 40px; font-weight: 900; color: var(--deep-blue); text-align: center; border-radius: 15px; }
+        .front { transform: rotateY(0deg) translateZ(40px); } .back { transform: rotateY(180deg) translateZ(40px); }
+        .right { transform: rotateY(90deg) translateZ(40px); } .left { transform: rotateY(-90deg) translateZ(40px); }
+        .top { transform: rotateX(90deg) translateZ(40px); } .bottom { transform: rotateX(-90deg) translateZ(40px); }
+
+        .btn-group { display: flex; flex-direction: column; gap: 10px; width: 80%; }
+        button { 
+            padding: 12px; font-size: 20px; cursor: pointer; background: #74b9ff; 
+            color: white; border: none; border-radius: 25px; font-weight: 900; 
+            box-shadow: 0 6px #0984e3; transition: 0.1s;
+        }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        .stop-btn { background: #ff7675; box-shadow: 0 6px #d63031; font-size: 16px; margin-top: 5px; }
+
+        .piece { 
+            width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+            font-size: 30px; position: absolute; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2));
+        }
+
+        #modal-bg { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3); backdrop-filter: blur(8px); z-index:200; }
+        #modal { 
+            display: none; position: fixed; top:50%; left:50%; transform:translate(-50%, -50%); 
+            background:white; color: #2d3436; padding:30px; border-radius:45px; z-index:201; 
+            width:85%; max-width:520px; text-align:center; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 8px solid #74b9ff;
+        }
+        #timer-bar { width: 100%; height: 16px; background: #f1f2f6; border-radius: 10px; overflow: hidden; margin: 15px 0; }
+        #timer-progress { width: 100%; height: 100%; background: #ff7675; transition: width 1s linear; }
+        
+        .q-box { background: #f8faff; padding: 20px; border-radius: 25px; margin-bottom: 20px; border: 2px dashed #74b9ff; text-align: left; }
+        .q-row { margin-bottom: 10px; font-size: 18px; line-height: 1.5; }
+        .q-label { display: inline-block; width: 85px; color: var(--deep-blue); font-weight: 900; }
+        .q-val { color: #2d3436; font-weight: 900; }
+        .highlight { color: #e17055; font-weight: 900; }
+
+        input { width: 85%; padding: 15px; font-size: 30px; border: 6px solid #74b9ff; border-radius: 20px; text-align: center; margin-bottom: 20px; outline: none; }
+
+        #result-screen { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: var(--sky); z-index:500; flex-direction: column; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgm" loop>
+        <source src="https://assets.mixkit.co/music/preview/mixkit-funny-game-loop-2826.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="round-tracker">ROUND <span id="curr-round">1</span></div>
+
+    <div id="scoreboard">
+        <div class="score-box active" id="score-0">🦁 1번<br><b>100</b></div>
+        <div class="score-box" id="score-1">🦊 2번<br><b>100</b></div>
+        <div class="score-box" id="score-2">🐼 3번<br><b>100</b></div>
+        <div class="score-box" id="score-3">🐰 4번<br><b>100</b></div>
+    </div>
+
+    <div id="board">
+        <div id="ui-center">
+            <div class="scene"><div class="dice" id="dice"><div class="dice-face front">1</div><div class="dice-face back">6</div><div class="dice-face right">3</div><div class="dice-face left">4</div><div class="dice-face top">5</div><div class="dice-face bottom">2</div></div></div>
+            <div class="btn-group">
+                <button id="dice-btn" onclick="handleTurn()">주사위 던지기!</button>
+                <button class="stop-btn" onclick="confirmEnd()">종료</button>
+            </div>
+            <p id="status-msg" style="font-weight:900; color:var(--deep-blue); margin-top:10px;">🦁 1번 친구 차례!</p>
+        </div>
+        <div class="piece" id="piece-0">🦁</div><div class="piece" id="piece-1">🦊</div>
+        <div class="piece" id="piece-2">🐼</div><div class="piece" id="piece-3">🐰</div>
+    </div>
+
+    <div id="modal-bg"></div>
+    <div id="modal">
+        <div id="timer-container"><div id="timer-text" style="font-weight:900; color:#ff7675;">남은 시간: 60초</div><div id="timer-bar"><div id="timer-progress"></div></div></div>
+        <div style="font-size:22px; color:var(--deep-blue); font-weight:900; margin-bottom:15px;">🕵️ 탐험 미션: 나라를 찾아라!</div>
+        
+        <div class="q-box" id="q-content"></div>
+
+        <input type="text" id="m-answer" placeholder="정답 입력" autocomplete="off">
+        <button onclick="checkAnswer()" style="width:100%; padding:15px; background:#55efc4; color:white; border-radius:25px; border:none; font-weight:900; font-size:22px; cursor:pointer;">정답 확인!</button>
+    </div>
+
+    <div id="result-screen">
+        <h1 style="font-size:50px; color:white; text-shadow: 3px 3px 0px #74b9ff;">🥇 오늘의 지리 왕! 🥇</h1>
+        <div id="rank-list"></div>
+        <button onclick="location.reload()" style="margin-top:30px; background:white; color:#74b9ff; padding:15px 50px; border:none; border-radius:25px; font-weight:900; font-size:20px;">새로운 지도로 다시 시작</button>
+    </div>
+
+<script>
+    // 🌍 국가 데이터베이스 (아이콘 교체 완료)
+    const BIG_POOL = [
+        { ans: "대한민국", continent: "아시아", ocean: "태평양(황해)", lat: "북위 33~38도", lon: "동경 124~132도", icon: "🥬", val: 50 },
+        { ans: "중국", continent: "아시아", ocean: "태평양(황해)", lat: "북위 20~50도", lon: "동경 80~130도", icon: "🏯", val: 50 },
+        { ans: "일본", continent: "아시아", ocean: "태평양", lat: "북위 30~45도", lon: "동경 130~145도", icon: "🗻", val: 50 },
+        { ans: "인도", continent: "아시아", ocean: "인도양", lat: "북위 8~35도", lon: "동경 68~97도", icon: "🕌", val: 70 },
+        { ans: "베트남", continent: "아시아", ocean: "태평양(남중국해)", lat: "북위 8~23도", lon: "동경 102~110도", icon: "🛶", val: 60 },
+        { ans: "사우디아라비아", continent: "아시아", ocean: "인도양(홍해/페르시아만)", lat: "북위 16~32도", lon: "동경 34~55도", icon: "🏜️", val: 100 },
+        { ans: "영국", continent: "유럽", ocean: "대서양", lat: "북위 50~60도", lon: "서경 8도 ~ 동경 1도", icon: "🕰️", val: 60 },
+        { ans: "프랑스", continent: "유럽", ocean: "대서양/지중해", lat: "북위 42~51도", lon: "서경 5도 ~ 동경 8도", icon: "🗼", val: 60 },
+        { ans: "독일", continent: "유럽", ocean: "대서양(북해)", lat: "북위 47~55도", lon: "동경 5~15도", icon: "🍺", val: 60 },
+        { ans: "이탈리아", continent: "유럽", ocean: "지중해", lat: "북위 36~47도", lon: "동경 6~18도", icon: "🍕", val: 70 },
+        { ans: "러시아", continent: "유럽/아시아", ocean: "북극해/태평양", lat: "북위 41~82도", lon: "동경 19도 ~ 서경 170도", icon: "❄️", val: 60 },
+        { ans: "미국", continent: "북아메리카", ocean: "태평양/대서양", lat: "북위 25~49도", lon: "서경 67~125도", icon: "🗽", val: 50 },
+        { ans: "캐나다", continent: "북아메리카", ocean: "대서양/태평양/북극해", lat: "북위 41~83도", lon: "서경 52~141도", icon: "🍁", val: 60 },
+        { ans: "멕시코", continent: "북아메리카", ocean: "태평양/대서양(멕시코만)", lat: "북위 14~32도", lon: "서경 86~118도", icon: "🌮", val: 70 },
+        { ans: "브라질", continent: "남아메리카", ocean: "대서양", lat: "적도 ~ 남위 33도", lon: "서경 34~73도", icon: "🌲", val: 70 },
+        { ans: "칠레", continent: "남아메리카", ocean: "태평양", lat: "남위 17~56도", lon: "서경 66~75도", icon: "📏", val: 90 },
+        { ans: "페루", continent: "남아메리카", ocean: "태평양", lat: "적도 ~ 남위 18도", lon: "서경 68~81도", icon: "⛰️", val: 80 },
+        { ans: "이집트", continent: "아프리카", ocean: "지중해/홍해", lat: "북위 22~31도", lon: "동경 25~35도", icon: "🐫", val: 70 },
+        { ans: "남아공", continent: "아프리카", ocean: "대서양/인도양", lat: "남위 22~34도", lon: "동경 16~32도", icon: "⚽", val: 80 },
+        { ans: "케냐", continent: "아프리카", ocean: "인도양", lat: "적도 부근", lon: "동경 34~41도", icon: "🦒", val: 90 },
+        { ans: "호주", continent: "오세아니아", ocean: "인도양/태평양", lat: "남위 10~40도", lon: "동경 113~153도", icon: "🦘", val: 70 },
+        { ans: "뉴질랜드", continent: "오세아니아", ocean: "태평양", lat: "남위 34~47도", lon: "동경 166~178도", icon: "🥝", val: 80 },
+        { ans: "스페인", continent: "유럽", ocean: "대서양/지중해", lat: "북위 36~43도", lon: "서경 9도 ~ 동경 3도", icon: "💃", val: 70 },
+        { ans: "몽골", continent: "아시아", ocean: "없음(내륙국)", lat: "북위 41~52도", lon: "동경 87~119도", icon: "🐎", val: 70 },
+        { ans: "그리스", continent: "유럽", ocean: "지중해", lat: "북위 34~41도", lon: "동경 19~28도", icon: "🏛️", val: 80 }
+    ];
+
+    let tilesData = [];
+    let players = [{score:100, pos:0, worldTravel: false}, {score:100, pos:0, worldTravel: false}, {score:100, pos:0, worldTravel: false}, {score:100, pos:0, worldTravel: false}];
+    let turn = 0, round = 1, isMoving = false, isSelecting = false, timerInterval = null;
+    let curAns = "";
+    const pIcons = ['🦁', '🦊', '🐼', '🐰'], pColors = ['#ff7675', '#74b9ff', '#fdcb6e', '#55efc4'];
+
+    function initBoard() {
+        const shuffledPool = [...BIG_POOL].sort(() => Math.random() - 0.5).slice(0, 22);
+        const coords = [
+            {r:1,c:1},{r:1,c:2},{r:1,c:3},{r:1,c:4},{r:1,c:5},{r:1,c:6},{r:1,c:7},{r:1,c:8},
+            {r:2,c:8},{r:3,c:8},{r:4,c:8},{r:5,c:8},{r:6,c:8},{r:7,c:8},{r:8,c:8},
+            {r:8,c:7},{r:8,c:6},{r:8,c:5},{r:8,c:4},{r:8,c:3},{r:8,c:2},{r:8,c:1},
+            {r:7,c:1},{r:6,c:1},{r:5,c:1},{r:4,c:1},{r:3,c:1},{r:2,c:1}
+        ];
+
+        let countryIdx = 0;
+        tilesData = coords.map((coord, i) => {
+            if (i === 0) return { name: "시작", type: "special", icon: "🚩", ...coord };
+            if (i === 3 || i === 13 || i === 24) return { name: "찬스", type: "chance", icon: "❓", ...coord };
+            if (i === 10) return { name: "무인도", type: "special", icon: "🏝️", ...coord };
+            if (i === 18) return { name: "세계여행", type: "special", icon: "✈️", ...coord };
+            
+            const country = shuffledPool[countryIdx++];
+            return { ...country, displayLabel: country.continent, ...coord };
+        });
+
+        const boardEl = document.getElementById('board');
+        tilesData.forEach((tile, i) => {
+            const t = document.createElement('div');
+            t.className = `tile ${tile.type || ''}`;
+            t.style.gridRow = tile.r; t.style.gridColumn = tile.c;
+            t.innerHTML = `<div class="tile-icon">${tile.icon}</div>${tile.name || tile.displayLabel}${tile.val ? `<div class="tile-point">${tile.val}P</div>` : ''}`;
+            t.id = `tile-${i}`;
+            t.onclick = () => selectTile(i);
+            boardEl.appendChild(t);
+        });
+    }
+
+    function updateView() {
+        players.forEach((p, i) => {
+            const tile = document.getElementById(`tile-${p.pos}`);
+            const piece = document.getElementById(`piece-${i}`);
+            const offsets = [[2,2], [22,2], [2,22], [22,22]];
+            piece.style.top = (tile.offsetTop + offsets[i][1]) + 'px';
+            piece.style.left = (tile.offsetLeft + offsets[i][0]) + 'px';
+            document.getElementById(`score-${i}`).querySelector('b').innerText = p.score;
+            document.getElementById(`score-${i}`).classList.toggle('active', turn === i);
+        });
+        document.getElementById('dice-btn').innerText = players[turn].worldTravel ? "세계여행 출발! ✨" : "주사위 던지기! 🎲";
+    }
+
+    function handleTurn() {
+        if (isMoving || isSelecting) return;
+        document.getElementById('bgm').play().catch(()=>{});
+        if (players[turn].worldTravel) startWorldTravel();
+        else rollDice();
+    }
+
+    async function rollDice() {
+        isMoving = true;
+        document.getElementById('dice-btn').disabled = true;
+        const dice = document.getElementById('dice');
+        dice.style.animation = "rolling 0.1s infinite linear";
+        await new Promise(r => setTimeout(r, 800));
+        dice.style.animation = "none";
+        const val = Math.floor(Math.random()*6)+1;
+        const rots = [{x:0,y:0},{x:90,y:0},{x:0,y:-90},{x:0,y:90},{x:-90,y:0},{x:0,y:180}];
+        const r = rots[val-1];
+        dice.style.transform = `translateZ(-45px) rotateX(${r.x}deg) rotateY(${r.y}deg)`;
+        await new Promise(r => setTimeout(r, 600));
+
+        for(let i=0; i<val; i++) {
+            const oldPos = players[turn].pos;
+            players[turn].pos = (players[turn].pos + 1) % tilesData.length;
+            if (players[turn].pos === 0 && oldPos !== 0) { players[turn].score += 100; showLapBonus(); }
+            updateView();
+            await new Promise(res => setTimeout(res, 200));
+        }
+        processTile();
+    }
+
+    function showLapBonus() {
+        const m = document.createElement('div');
+        m.innerText = "🎈 시작점 보너스 +100P!";
+        m.style.position='fixed'; m.style.top='15%'; m.style.left='50%'; m.style.transform='translateX(-50%)';
+        m.style.background='#55efc4'; m.style.color='white'; m.style.padding='15px 40px'; m.style.borderRadius='40px';
+        m.style.zIndex='1000'; m.style.fontWeight='900'; document.body.appendChild(m);
+        setTimeout(()=>m.remove(), 1500);
+    }
+
+    function startWorldTravel() {
+        isSelecting = true;
+        document.getElementById('status-msg').innerText = "✈️ 이동하고 싶은 칸을 클릭하세요!";
+        tilesData.forEach((_, i) => document.getElementById(`tile-${i}`).classList.add('selectable'));
+    }
+
+    async function selectTile(index) {
+        if (!isSelecting) return;
+        isSelecting = false;
+        players[turn].worldTravel = false;
+        tilesData.forEach((_, i) => document.getElementById(`tile-${i}`).classList.remove('selectable'));
+        players[turn].pos = index;
+        updateView();
+        await new Promise(r => setTimeout(r, 500));
+        processTile();
+    }
+
+    function processTile() {
+        const tile = tilesData[players[turn].pos];
+        if (tile.name === "세계여행") {
+            players[turn].worldTravel = true;
+            alert("✈️ 세계여행! 다음 턴에 원하는 칸으로 이동할 수 있어요!");
+            nextTurn();
+        } else if (tile.type === 'special' || tile.type === 'chance') {
+            if (tile.type === 'chance') {
+                const b = [50, 100, -50][Math.floor(Math.random()*3)];
+                players[turn].score += b;
+                alert(`❓ 찬스! 점수 변동: ${b}P`);
+            }
+            nextTurn();
+        } else if (tile.owner !== undefined && tile.owner !== turn) {
+            const fee = Math.floor(tile.val * 0.5);
+            players[turn].score -= fee;
+            players[tile.owner].score += fee;
+            alert(`🏘️ ${pIcons[tile.owner]} 친구가 점령한 [${tile.ans}]입니다! 통행료 ${fee}P 지불!`);
+            nextTurn();
+        } else {
+            openQuiz(tile);
+        }
+    }
+
+    function openQuiz(tile) {
+        curAns = tile.ans;
+        document.getElementById('modal-bg').style.display = 'block';
+        document.getElementById('modal').style.display = 'block';
+        
+        document.getElementById('q-content').innerHTML = `
+            <div class="q-row"><span class="q-label">대륙</span> <span class="q-val">${tile.continent}</span></div>
+            <div class="q-row"><span class="q-label">대양</span> <span class="q-val">${tile.ocean}</span></div>
+            <div class="q-row"><span class="q-label">위도</span> <span class="highlight">${tile.lat}</span></div>
+            <div class="q-row"><span class="q-label">경도</span> <span class="highlight">${tile.lon}</span></div>
+            <div style="margin-top:15px; font-weight:900; color:#2d3436; font-size:19px;">이 나라는 어디일까요?</div>
+        `;
+
+        const input = document.getElementById('m-answer');
+        input.value = ''; input.focus();
+
+        let timeLeft = 60;
+        const progress = document.getElementById('timer-progress');
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer-text').innerText = `남은 시간: ${timeLeft}초`;
+            progress.style.width = (timeLeft / 60 * 100) + '%';
+            if (timeLeft <= 0) { clearInterval(timerInterval); alert("⏰ 시간 초과! 정답을 맞히지 못했습니다."); closeModal(); nextTurn(); }
+        }, 1000);
+    }
+
+    function checkAnswer() {
+        clearInterval(timerInterval);
+        const input = document.getElementById('m-answer').value.trim().replace(/\s/g, "");
+        if(!input) return;
+        const tile = tilesData[players[turn].pos];
+        if (input === curAns.replace(/\s/g, "")) {
+            alert(`✅ 정답! 이 나라는 [${curAns}]입니다!\n${tile.val}P 획득 및 점령!`);
+            players[turn].score += tile.val;
+            tile.owner = turn;
+            const el = document.getElementById(`tile-${players[turn].pos}`);
+            el.style.background = pColors[turn]; el.style.color = 'white';
+            el.innerHTML = `<div class="tile-icon">${tile.icon}</div>${curAns}`;
+        } else {
+            alert(`❌ 틀렸습니다! 정답은 나중에 다시 도전해서 알아내 보세요!`);
+        }
+        closeModal();
+        nextTurn();
+    }
+
+    function closeModal() { document.getElementById('modal-bg').style.display = 'none'; document.getElementById('modal').style.display = 'none'; clearInterval(timerInterval); }
+
+    function nextTurn() {
+        turn = (turn + 1) % 4;
+        if (turn === 0) { round++; document.getElementById('curr-round').innerText = round; }
+        document.getElementById('status-msg').innerText = `${pIcons[turn]} ${turn+1}번 친구 차례!`;
+        document.getElementById('dice-btn').disabled = false;
+        isMoving = false;
+        updateView();
+    }
+
+    function confirmEnd() {
+        if (confirm("탐험을 종료하고 최종 결과를 확인하시겠습니까?")) {
+            const sorted = players.map((p, i) => ({id:i, score:p.score})).sort((a,b) => b.score - a.score);
+            const list = document.getElementById('rank-list');
+            list.innerHTML = "";
+            sorted.forEach((p, idx) => {
+                list.innerHTML += `<div style="background:white; width:340px; padding:20px; margin:10px; border-radius:30px; font-size:28px; font-weight:900; display:flex; justify-content:space-between; border: 5px solid ${pColors[p.id]}; box-shadow: 0 5px 15px rgba(0,0,0,0.1);"><span>${idx+1}등 ${pIcons[p.id]}</span> <span>${p.score}P</span></div>`;
+            });
+            document.getElementById('result-screen').style.display = 'flex';
+        }
+    }
+
+    document.getElementById('m-answer').onkeyup = (e) => { if(e.key==='Enter') checkAnswer(); };
+    window.onload = () => { initBoard(); updateView(); };
+</script>
+
+<style>
+    @keyframes rolling { 0% { transform: translateZ(-45px) rotateX(0) rotateY(0); } 100% { transform: translateZ(-45px) rotateX(360deg) rotateY(360deg); } }
+</style>
+</body>
+</html>
